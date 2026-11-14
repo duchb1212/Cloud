@@ -40,10 +40,13 @@ class Settings:
             return result
 
         stage = values.get("APP_ENV", "local")
-        if stage not in {"local", "test"}:
-            raise ConfigurationError("This foundation supports APP_ENV=local|test; production setup is pending")
+        if stage not in {"local", "test", "production"}:
+            raise ConfigurationError("APP_ENV must be one of: local, test, production")
         host = values.get("APP_HOST", "127.0.0.1")
-        if host not in {"127.0.0.1", "localhost", "::1"}:
+        if stage == "production":
+            if host not in {"0.0.0.0", "127.0.0.1", "localhost", "::1"}:
+                raise ConfigurationError("APP_HOST must be 0.0.0.0 or a loopback address")
+        elif host not in {"127.0.0.1", "localhost", "::1"}:
             raise ConfigurationError("Local foundation must bind to a loopback host")
         if values.get("DATA_MODE", "real") != "real":
             raise ConfigurationError("DATA_MODE must be real; use the separate CT-04 server for mock mode")
@@ -81,10 +84,14 @@ class Settings:
                 return None
             parsed = urlsplit(value)
             try:
-                if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"} or not parsed.port or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
-                    raise ValueError()
+                if stage == "production":
+                    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+                        raise ValueError()
+                else:
+                    if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"} or not parsed.port or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
+                        raise ValueError()
             except ValueError:
-                raise ConfigurationError(name + " must be an explicit HTTP loopback origin without credentials/path") from None
+                raise ConfigurationError(name + " must be a valid HTTP(S) origin without credentials") from None
             return value
         ocr_url = provider_url("OCR_SERVICE_URL", "http://127.0.0.1:8080")
         if not ocr_url:
